@@ -263,7 +263,7 @@ def _(mo):
         y0 = np.array(t_list[0][1])
         y1 = np.array(t_list[1][1])
         y2 = np.array(t_list[2][1])
-    
+
         fig = plt.figure()
         plt.plot(wl_nm, y0, 'r', wl_nm, y1, 'g', wl_nm, y2, 'b')
         plt.xlabel("Wavelength (nm)")
@@ -278,7 +278,7 @@ def _(mo):
                 f"neff={neff:.2f}, ng={ng:.2f}, "
                 f"loss={loss_db_per_cm:.2f} dB/cm"
             )
-    
+
         plt.text(
                 0.5,
                 1.02,
@@ -288,33 +288,6 @@ def _(mo):
                 va="bottom",
                 fontsize=9,
             )
-
-        # fig, ax = plt.subplots(nrows=3, figsize=(10,14))
-        # for i in range(len(ax)):
-        #     y = np.array(t_list[i][1])
-        #     ax[i].plot(wl_nm, y, lw=1.5)
-        #     ax[i].set_xlabel("Wavelength (nm)")
-        #     ax[i].set_ylabel("Through transmission |S|^2")
-        #     ax[i].set_title("Ideal all-pass ring (Simphony), "
-        #                     f"R = {R[i]} μm",
-        #                     pad=20.0)
-        #     ax[i].grid(True, alpha=0.25)
-        #     ax[i].set_ylim(-0.05, 1.05)
-
-        #     subtitle = (
-        #         f"kappa={coupling:.2f}, "
-        #         f"neff={neff:.2f}, ng={ng:.2f}, "
-        #         f"loss={loss_db_per_cm:.2f} dB/cm"
-        #     )
-        #     ax[i].text(
-        #         0.5,
-        #         1.02,
-        #         subtitle,
-        #         transform=ax[i].transAxes,
-        #         ha="center",
-        #         va="bottom",
-        #         fontsize=9,
-        #     )
         fig.tight_layout()
         buf = BytesIO()
         fig.savefig(buf, format="png", bbox_inches="tight")
@@ -350,7 +323,7 @@ def _(mo):
             mo.md(f"Percent Error: {err_2:.2f}%")
         ])
     output
-    return
+    return math, neff, ng
 
 
 @app.cell(hide_code=True)
@@ -388,6 +361,25 @@ def _(mo):
     return
 
 
+@app.cell
+def _(math, neff, ng):
+    def mode_number(FSR):
+        """
+        Returns a list containing in order:
+        - target FSR
+        - exact ring radius
+        - exact mode number
+        - mode number rounded to the closest integer
+
+        NEEDS TO GET FINALIZED FOR PRINTING OUT DELIVERABLES
+        """
+        _lambda0 = 1550
+        ring_radius = _lambda0**2 / (FSR * ng * 2 * math.pi) # FSR eqn
+        mode_num = neff * 2 * math.pi * ring_radius / _lambda0
+        return [FSR, ring_radius * 10**-3, mode_num, round(mode_num)]
+    return
+
+
 @app.cell(hide_code=True)
 def _(mo):
     from textwrap import dedent as _dedent
@@ -413,6 +405,11 @@ def _(mo):
             """
         ).strip()
     )
+    return
+
+
+@app.cell
+def _():
     return
 
 
