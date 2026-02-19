@@ -13,7 +13,7 @@
 
 import marimo
 
-__generated_with = "0.18.4"
+__generated_with = "0.19.2"
 app = marimo.App()
 
 
@@ -592,7 +592,6 @@ def _():
             import gdsfactory as gf
         except Exception as exc:  # pragma: no cover - depends on environment
             gf_import_error = f"{type(exc).__name__}: {exc}"
-
     return Path, alt, b64, gf, gf_import_error, mo, np, pl
 
 
@@ -806,9 +805,7 @@ def _(np):
             "fsr_nm": fsr,
             "n_peaks": int(peaks_nm.size),
         }
-
-    return auto_fsr_from_curve,
-
+    return auto_fsr_from_curve
 
 @app.cell
 def _(gf, gf_import_error, mo, show_overview):
@@ -1002,7 +999,14 @@ def _(mo):
         step=0.0001,
         label="Phase effective index n_eff (toy model; tune fringes)",
     )
-    return n_eff, ng, spectrum_center, spectrum_center_1310, spectrum_span_nm, wl_band
+    return (
+        n_eff,
+        ng,
+        spectrum_center,
+        spectrum_center_1310,
+        spectrum_span_nm,
+        wl_band,
+        )
 
 
 @app.cell
@@ -1109,8 +1113,8 @@ def _(
     spectrum_center,
     spectrum_center_1310,
     spectrum_span_nm,
-    wl_band,
     view_mode,
+    wl_band,
     y_scale,
 ):
     mo.stop(not show_interactive)
@@ -1176,8 +1180,8 @@ def _(
     spectrum_center,
     spectrum_center_1310,
     spectrum_span_nm,
-    wl_band,
     view_mode,
+    wl_band,
     y_scale,
 ):
     mo.stop(not show_interactive)
@@ -1818,7 +1822,15 @@ def _(mo, show_interactive):
     auto_source, lam1_nm, lam2_nm, lam1_state, lam2_state, set_lam1, set_lam2 = (
         make_fsr_tool_widgets(mo)
     )
-    return auto_source, lam1_nm, lam1_state, lam2_nm, lam2_state, set_lam1, set_lam2
+    return (
+        auto_source,
+        lam1_nm,
+        lam1_state,
+        lam2_nm,
+        lam2_state,
+        set_lam1,
+        set_lam2,
+        )
 
 
 @app.cell

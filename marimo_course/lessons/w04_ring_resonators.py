@@ -21,7 +21,6 @@ app = marimo.App()
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 
@@ -255,43 +254,44 @@ def _(
         t0 = time.time()
         from jax import config
 
-        config.update("jax_enable_x64", True)
-
+        config.update("jax_enable_x64", True) # 64-bit floats
         import jax.numpy as jnp
         import sax
         from simphony.libraries import ideal
 
         import_seconds = time.time() - t0
 
-        _lambda0_um = float(lambda0_nm.value) * 1e-3
+        _lambda0_um = float(lambda0_nm.value) * 1e-3 # Convert nm → μm 
         _span_um = float(span_nm.value) * 1e-3
         wl_um = jnp.linspace(
             _lambda0_um - 0.5 * _span_um,
             _lambda0_um + 0.5 * _span_um,
             int(points.value),
-        )
+        )                                # wavelength array centered on lambda0
 
         _R_um = float(radius_um.value)
-        _L_um = 2.0 * math.pi * _R_um
+        _L_um = 2.0 * math.pi * _R_um     # round-trip length L = 2πR
 
         ring_circuit, _ = sax.circuit(
             netlist={
-                "instances": {
-                    "dc": "coupler",
-                    "loop": "waveguide",
+                "instances": { # ? Where can I find all possible instances?
+                    "dc": "coupler",      # initiate coupler
+                    "loop": "waveguide",  # initiate ring waveguide; simphony
+                                          # docs say it's a straight waveguide 
                 },
                 "connections": {
-                    # Close the ring loop between the two ring-side coupler ports.
-                    "dc,o2": "loop,o0",
-                    "loop,o1": "dc,o3",
+                    # Close the ring loop between the two ring-side coupler
+                    # ports.
+                    "dc,o2": "loop,o0",   # "NW" dc port to loop's first port
+                    "loop,o1": "dc,o3",   # loop's second port to "NE" dc port 
                 },
                 "ports": {
-                    "input": "dc,o0",
-                    "through": "dc,o1",
+                    "input": "dc,o0",     # input to "SW" dc port
+                    "through": "dc,o1",   # through to "SE" dc port
                 },
             },
             models={
-                "coupler": ideal.coupler,
+                "coupler": ideal.coupler, # ? Tells what coupler is
                 "waveguide": ideal.waveguide,
             },
         )
@@ -299,9 +299,9 @@ def _(
         S = ring_circuit(
             wl=wl_um,
             dc={
-                "coupling": float(coupling.value),
+                "coupling": float(coupling.value), # fraction of power coupled
                 "loss": 0.0,
-                "phi": 0.5 * math.pi,
+                "phi": 0.5 * math.pi, # π/2 phase convention
             },
             loop={
                 "wl0": _lambda0_um,
@@ -358,7 +358,7 @@ def _(
         ax.plot(wl_nm, y, lw=1.5)
         ax.set_xlabel("Wavelength (nm)")
         ax.set_ylabel("Through transmission |S|^2")
-        ax.set_title("Ideal all-pass ring (Simphony)")
+        ax.set_title("Ideal all-pass ring (Simphony)", pad=20)
         ax.grid(True, alpha=0.25)
         ax.set_ylim(-0.05, 1.05)
 
@@ -651,7 +651,7 @@ def _(
         _ax.plot(_wl_nm, _y2_np, lw=1.6, label="out2", alpha=0.85)
         _ax.set_xlabel("Wavelength (nm)")
         _ax.set_ylabel("Transmission |S|^2")
-        _ax.set_title("MZI + ring demo (Simphony ideal)")
+        _ax.set_title("MZI + ring demo (Simphony ideal)", pad=20)
         _ax.grid(True, alpha=0.25)
         _ax.set_ylim(-0.05, 1.05)
         _ax.legend(loc="best")
