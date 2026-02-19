@@ -94,7 +94,7 @@ def _(doc_callout_list, mo):
             "Short note: your ΔL and target FSR.",
         ],
     )
-    return (mo.vstack([overview_md, solution_note, submission_checklist]),)
+    return (overview_md,)
 
 
 @app.cell(hide_code=True)
@@ -137,7 +137,7 @@ def _(mo):
 
     username = "solution_user"
     repo_root = pathlib_params.Path(__file__).resolve().parents[3]
-    ebeam_pdk_path = str(repo_root / "SiEPIC_EBeam_PDK_public")
+    ebeam_pdk_path = str(repo_root / "SiEPIC_EBeam_PDK")
     openebl_path = str(repo_root / "openEBL-2026-02")
 
     delta_length_um = 300.0
@@ -165,10 +165,10 @@ def _(mo):
         f"- export path: `{export_gds}`\n"
     )
     return (
-        delta_length_um,
-        export_gds,
         combiner_cell,
         combiner_gds,
+        delta_length_um,
+        export_gds,
         gc_cell,
         gc_gds,
         length_x_um,
@@ -180,9 +180,9 @@ def _(mo):
 
 @app.cell
 def _(
-    delta_length_um,
     combiner_cell,
     combiner_gds,
+    delta_length_um,
     gc_cell,
     gc_gds,
     length_x_um,
