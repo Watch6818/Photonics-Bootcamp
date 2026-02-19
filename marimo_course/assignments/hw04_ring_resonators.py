@@ -129,44 +129,45 @@ def _(mo):
 
 @app.cell
 def _(mo):
-    S = None
-    intensity = None
-    import_seconds = None
-    output = None
-    simphony_error = ""
-    wl_um = None
+    _output = None
+    _simphony_error = ""
+    _wl_um = None
 
     try:
-        import time
-
-        t0 = time.time()
+        from io import BytesIO
         from jax import config
         config.update("jax_enable_x64", True) # 64-bit floats
         import jax.numpy as jnp
         import math
         import matplotlib.pyplot as plt
+        import numpy as np
         import sax
         from simphony.libraries import ideal # Not siepic yet; use ideal models
-        import_seconds = time.time() - t0 # Time taken to import
 
         # All values in this block are the defaults given in
         # w04_ring_resonators.py
-        R = [13, 14, 15]
-        coupling = 0.05
-        neff = 2.34
-        ng = 4.0
-        loss_db_per_cm = 2.0 # ?
+        _R = [13, 14, 15]
+        _coupling = 0.05
+        _neff = 2.34
+        _ng = 4.0
+        _loss_db_per_cm = 2.0 # ?
 
-        _lambda0_um = 1550 * 1e-3
-        _span_um = 20 * 1e-3
-        points = 800
-        wl_um = jnp.linspace(
-            _lambda0_um - 0.5 * _span_um,
-            _lambda0_um + 0.5 * _span_um,
-            points,
-        )
+        def build_wl_array(lambda0=1550, span=20, points=800):
+            """
+            lambda0: Initial wavelength. nm
+            span: Distance from initial to last wavelength in array. nm
+            points: Number of points in grid
+            """
+            lambda0_um , span_um = lambda0 * 1e-3, span * 1e-3
+            array = jnp.linspace(
+                lambda0_um - 0.5 * span_um,
+                lambda0_um + 0.5 * span_um,
+                points
+            )
+            return array, lambda0_um
+        _wl_um, _lambda0_um = build_wl_array()
 
-        ring_circuit, _ = sax.circuit(
+        _ring_circuit, _ = sax.circuit(
             netlist={
                 "instances": {
                     "dc": "coupler",      # Initiate coupler
@@ -190,49 +191,53 @@ def _(mo):
             },
         )
 
-        def get_transmission(R):
-            _R_um = R                       # One of our ring values in μm
-            _L_um = 2.0 * math.pi * _R_um
+        def get_transmission(radius, sc):
+            """
+            radius: Radius of given ring. μm
+            sc : Pass in the sax.circuit() object you made.
+            """
+            S = None
+            L = 2.0 * math.pi * radius
 
-            S = ring_circuit(
-                wl=wl_um,
+            S = sc(
+                wl=_wl_um,
                 dc={
-                    "coupling": coupling, # fraction of power coupled
+                    "coupling": _coupling, # fraction of power coupled
                     "loss": 0.0,
                     "phi": 0.5 * math.pi, # π/2 phase convention
                 },
                 loop={
                     "wl0": _lambda0_um,
-                    "neff": neff,
-                    "ng": ng,
-                    "length": _L_um,
-                    "loss": loss_db_per_cm,
+                    "neff": _neff,
+                    "ng": _ng,
+                    "length": L,
+                    "loss": _loss_db_per_cm,
                 },
             )
             t_through = S["through", "input"]
-            intensity = jnp.abs(t_through) ** 2 # What we plot using matplotlib
+            intensity = jnp.abs(t_through) ** 2
             return [t_through, intensity]
         t_list = [
-            get_transmission(R[0]),
-            get_transmission(R[1]),
-            get_transmission(R[2])
+            get_transmission(_R[0], _ring_circuit),
+            get_transmission(_R[1], _ring_circuit),
+            get_transmission(_R[2], _ring_circuit)
             ]
 
     except Exception as e:  # pragma: no cover
-        simphony_error = f"{type(e).__name__}: {e}"
+        _simphony_error = f"{type(e).__name__}: {e}"
 
     # Handling simphony_error
-    if simphony_error:
+    if _simphony_error:
         import sys
 
         py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
         if (
-            "No module named 'jax'" in simphony_error
-            or 'No module named "jax"' in simphony_error
-            or "No module named 'sax'" in simphony_error
-            or 'No module named "sax"' in simphony_error
+            "No module named 'jax'" in _simphony_error
+            or 'No module named "jax"' in _simphony_error
+            or "No module named 'sax'" in _simphony_error
+            or 'No module named "sax"' in _simphony_error
         ):
-            output = mo.callout(
+            _output = mo.callout(
                 mo.md(
                     (
                         "Simphony ring failed because required dependencies are missing.\n\n"
@@ -249,81 +254,87 @@ def _(mo):
                 kind="warn",
             )
         else:
-            output = mo.md(f"Simphony ring failed: `{simphony_error}`")
+            _output = mo.md(f"Simphony ring failed: `{_simphony_error}`")
 
     else:
         # Plot as a PNG for consistent rendering in marimo.
-        import numpy as np
-        from io import BytesIO
+        _wl_nm = np.array(_wl_um) * 1e3
 
-        import matplotlib.pyplot as plt
+        _y0 = np.array(t_list[0][1])
+        _y1 = np.array(t_list[1][1])
+        _y2 = np.array(t_list[2][1])
 
-        wl_nm = np.array(wl_um) * 1e3
-
-        y0 = np.array(t_list[0][1])
-        y1 = np.array(t_list[1][1])
-        y2 = np.array(t_list[2][1])
-
-        fig = plt.figure()
-        plt.plot(wl_nm, y0, 'r', wl_nm, y1, 'g', wl_nm, y2, 'b')
+        _fig = plt.figure()
+        plt.plot(_wl_nm, _y0, 'r', _wl_nm, _y1, 'g', _wl_nm, _y2, 'b')
         plt.xlabel("Wavelength (nm)")
         plt.ylabel("Through transmission |S|^2")
         plt.title("Ideal all-pass ring (Simphony) "
-                  f"for R = {R[0]}, {R[1]}, and {R[2]} μm",
+                  f"for R = {_R[0]}, {_R[1]}, and {_R[2]} μm",
                   pad=20
                  )
-        plt.legend([f'R = {R[0]}',f'R = {R[1]}', f'R = {R[2]}'])
-        subtitle = (
-                f"kappa={coupling:.2f}, "
-                f"neff={neff:.2f}, ng={ng:.2f}, "
-                f"loss={loss_db_per_cm:.2f} dB/cm"
+        plt.legend([f'R = {_R[0]}',f'R = {_R[1]}', f'R = {_R[2]}'])
+        _subtitle = (
+            f"kappa={_coupling:.2f}, "
+            f"neff={_neff:.2f}, ng={_ng:.2f}, "
+            f"loss={_loss_db_per_cm:.2f} dB/cm"
             )
 
         plt.text(
                 0.5,
                 1.02,
-                subtitle,
-                transform = plt.gca().transAxes,
+                _subtitle,
+                transform=plt.gca().transAxes,
                 ha="center",
                 va="bottom",
                 fontsize=9,
             )
-        fig.tight_layout()
-        buf = BytesIO()
-        fig.savefig(buf, format="png", bbox_inches="tight")
-        buf.seek(0)
-        plt.close(fig)
+        _fig.tight_layout()
+        _buf = BytesIO()
+        _fig.savefig(_buf, format="png", bbox_inches="tight")
+        _buf.seek(0)
+        plt.close(_fig)
 
-        from scipy.signal import find_peaks
+        from scipy.signal import find_peaks, peak_widths
         def get_m_FSR(y): # Measured FSR
             peaks, _ = find_peaks(-y)
-            return wl_nm[peaks[1]] - wl_nm[peaks[0]]
-        def get_a_FSR(R): # Analytic FSR
-            L = 2 * math.pi * R
-            return (_lambda0_um * 10**3)**2 / (ng * L * 10**3)
-        fsr_0 = get_m_FSR(y0)
-        fsr_1 = get_m_FSR(y1)
-        fsr_2 = get_m_FSR(y2)
-        fsr_a_0 = get_a_FSR(R[0])
-        fsr_a_1 = get_a_FSR(R[1])
-        fsr_a_2 = get_a_FSR(R[2])
-        err_0 = abs(fsr_a_0 - fsr_0)/fsr_a_0 * 100
-        err_1 = abs(fsr_a_1 - fsr_1)/fsr_a_1 * 100
-        err_2 = abs(fsr_a_2 - fsr_2)/fsr_a_2 * 100
-        output = mo.vstack([
-            mo.image(buf),
-            mo.md(f"**Measured FSR (R={R[0]} μm):** {fsr_0:.2f} nm"),
-            mo.md(f"Analytic FSR (R={R[0]} μm): {fsr_a_0:.2f} nm"),
-            mo.md(f"Percent Error: {err_0:.2f}%"),
-            mo.md(f"**Measured FSR (R={R[1]} μm):** {fsr_1:.2f} nm"),
-            mo.md(f"Analytic FSR (R={R[1]} μm): {fsr_a_1:.2f} nm"),
-            mo.md(f"Percent Error: {err_1:.2f}%"),
-            mo.md(f"**Measured FSR (R={R[2]} μm):** {fsr_2:.2f} nm"),
-            mo.md(f"Analytic FSR (R={R[2]} μm): {fsr_a_2:.2f} nm"),
-            mo.md(f"Percent Error: {err_2:.2f}%")
+            return _wl_nm[peaks[1]] - _wl_nm[peaks[0]]
+        def get_a_FSR(radius): # Analytic FSR
+            L = 2 * math.pi * radius
+            return (_lambda0_um * 10**3)**2 / (_ng * L * 10**3)
+        _fsr_0 = get_m_FSR(_y0)
+        _fsr_1 = get_m_FSR(_y1)
+        _fsr_2 = get_m_FSR(_y2)
+        _fsr_a_0 = get_a_FSR(_R[0])
+        _fsr_a_1 = get_a_FSR(_R[1])
+        _fsr_a_2 = get_a_FSR(_R[2])
+        _err_0 = abs(_fsr_a_0 - _fsr_0)/_fsr_a_0 * 100
+        _err_1 = abs(_fsr_a_1 - _fsr_1)/_fsr_a_1 * 100
+        _err_2 = abs(_fsr_a_2 - _fsr_2)/_fsr_a_2 * 100
+        _output = mo.vstack([
+            mo.md("## Part A: Plots and Results"),
+            mo.image(_buf),
+            mo.md(f"**Measured FSR (R={_R[0]} μm):** {_fsr_0:.2f} nm"),
+            mo.md(f"Analytic FSR (R={_R[0]} μm): {_fsr_a_0:.2f} nm"),
+            mo.md(f"Percent Error: {_err_0:.2f}%"),
+            mo.md(f"**Measured FSR (R={_R[1]} μm):** {_fsr_1:.2f} nm"),
+            mo.md(f"Analytic FSR (R={_R[1]} μm): {_fsr_a_1:.2f} nm"),
+            mo.md(f"Percent Error: {_err_1:.2f}%"),
+            mo.md(f"**Measured FSR (R={_R[2]} μm):** {_fsr_2:.2f} nm"),
+            mo.md(f"Analytic FSR (R={_R[2]} μm): {_fsr_a_2:.2f} nm"),
+            mo.md(f"Percent Error: {_err_2:.2f}%")
         ])
-    output
-    return math, neff, ng
+    _output
+    return (
+        BytesIO,
+        build_wl_array,
+        find_peaks,
+        jnp,
+        math,
+        np,
+        peak_widths,
+        plt,
+        sax,
+    )
 
 
 @app.cell(hide_code=True)
@@ -362,20 +373,20 @@ def _(mo):
 
 
 @app.cell
-def _(math, neff, ng):
-    def mode_number(FSR):
+def _(math):
+    def mode_number(FSR, neff, ng):
         """
         Returns a list containing in order:
         - target FSR
         - exact ring radius
         - exact mode number
-        - mode number rounded to the closest integer
+        - mode number rounded to closest integer
 
         NEEDS TO GET FINALIZED FOR PRINTING OUT DELIVERABLES
         """
-        _lambda0 = 1550
-        ring_radius = _lambda0**2 / (FSR * ng * 2 * math.pi) # FSR eqn
-        mode_num = neff * 2 * math.pi * ring_radius / _lambda0
+        lambda0 = 1550
+        ring_radius = lambda0**2 / (FSR * ng * 2 * math.pi) # FSR eqn
+        mode_num = neff * 2 * math.pi * ring_radius / lambda0
         return [FSR, ring_radius * 10**-3, mode_num, round(mode_num)]
     return
 
@@ -409,7 +420,106 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(BytesIO, build_wl_array, find_peaks, jnp, mo, np, peak_widths, plt, sax):
+    from functools import partial
+    from simphony.libraries import siepic
+
+    ## Perform simulation ##
+    _wl_um = build_wl_array()[0]
+    _pol = 'te'
+    _coupling_length = 0
+    _width = 500
+    _thickness = 220
+    _radius = 10
+    _gap = 100
+
+
+    ring_add_drop, _ = sax.circuit(
+        netlist={
+            "instances": {
+                "top":    "half_ring",
+                "bottom": "half_ring",
+                "term": "terminator", # Escape light at terminator → no reflect
+            },
+            "connections": {
+                "top,port_3":    "bottom,port_1",
+                "bottom,port_3": "top,port_1",
+                "term,port_1": "bottom,port_4"
+            },
+            "ports": {
+                "in":      "top,port_4",
+                "through": "top,port_2",
+                "drop":    "bottom,port_2",
+            },
+        },
+        models={
+            "half_ring": partial(
+                siepic.half_ring,
+                wl=_wl_um,
+                pol=_pol,
+                coupling_length=_coupling_length,
+                width=_width,
+                thickness=_thickness,
+                radius=_radius,
+                gap=_gap,
+                ),
+            "terminator": partial(siepic.terminator, pol=_pol)
+        },
+    )
+
+    _S = ring_add_drop(wl=_wl_um)
+    i_through = jnp.abs(_S["through", "in"]) ** 2 # Intensity array of through port
+    i_drop = jnp.abs(_S["drop", "in"]) ** 2
+
+    ## Plot results ##
+    _wl_nm = _wl_um * 1e3
+    yd = np.array(i_drop)
+    yt = np.array(i_through)
+
+    _fig = plt.figure()
+    plt.plot(_wl_nm, yt, 'r', _wl_nm, yd, 'g')
+    plt.xlabel("Wavelength (nm)")
+    plt.ylabel("Transmission |S|^2")
+    plt.title("SiEPIC add-drop ring (Simphony)", pad=20)
+    plt.legend(['Through Port', 'Drop Port'])
+    _subtitle = (
+            f"pol={_pol}, "
+            f"coupling length={_coupling_length} μm, "
+            f"width={_width} nm, "
+            f"thickness={_thickness} nm, "
+            f"radius={_radius} μm, "
+            f"gap={_gap} nm"
+            )
+    plt.text(
+        0.5,
+        1.02,
+        _subtitle,
+        transform = plt.gca().transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=9,
+        )
+    _fig.tight_layout()
+    _buf = BytesIO()
+    _fig.savefig(_buf, format="png", bbox_inches="tight")
+    _buf.seek(0)
+    plt.close(_fig)
+
+    ## Calculate Q ##
+    def calculate_Q(wavelengths, intensity_array, has_dips=False):
+        if has_dips:
+            intensity_array = - intensity_array
+        nm_per_index = wavelengths[1] - wavelengths[0]
+        peaks, _ = find_peaks(intensity_array, prominence=0.125)
+        widths = peak_widths(intensity_array, peaks)
+        fwhm_nm = widths[0] * nm_per_index # widths[0]: np.array
+        Q_vals = wavelengths[peaks] / fwhm_nm
+        Q_avg = Q_vals.mean()
+        return Q_vals, Q_avg
+    Q = calculate_Q(_wl_nm, yd)
+    print(Q)
+    _output = mo.image(_buf)
+    _output
     return
 
 
@@ -433,6 +543,73 @@ def _(mo):
             - A screenshot of the layout.
             """
         ).strip()
+    )
+    return
+
+
+@app.cell
+def _(combiner_cell, combiner_gds, mo, splitter_cell, splitter_gds):
+    # SOLUTION VALUES — update if your paths differ
+    import pathlib as pathlib_params
+
+    username = "Watch6818"
+    repo_root = pathlib_params.Path(__file__).resolve().parents[3]
+    ebeam_pdk_path = str(repo_root / "SiEPIC_EBeam_PDK")
+    openebl_path = str(repo_root / "openEBL-2026-02")
+
+    delta_length_um = 300.0
+    length_x_um = 60.0
+    length_y_um = 10.0
+
+    ring_double = f"{ebeam_pdk_path}/klayout/EBeam/gds/EBeam/"
+
+    gc_gds = f"{ebeam_pdk_path}/klayout/EBeam/gds/EBeam/ebeam_gc_te1550.gds"
+    gc_cell = "ebeam_gc_te1550"
+
+
+
+    export_gds = f"{openebl_path}/submissions/EBeam_{username}.gds"
+
+    mo.md(
+        f"- ΔL: `{delta_length_um}` µm\n"
+        f"- length_x: `{length_x_um}` µm\n"
+        f"- length_y: `{length_y_um}` µm\n"
+        f"- splitter cell: `{splitter_cell}`\n"
+        f"- combiner cell: `{combiner_cell}`\n"
+        f"- GC cell: `{gc_cell}`\n"
+        f"- export path: `{export_gds}`\n"
+    )
+
+    import pathlib as pathlib_hw
+    import gdsfactory as gf
+    from gdsfactory.add_ports import add_ports_from_markers_center
+    from gdsfactory.read import import_gds
+    from gdsfactory.port import auto_rename_ports_orientation
+
+    gf.clear_cache() # Ensure components will be built fresh
+    if hasattr(gf, "gpdk") and hasattr(gf.gpdk, "PDK"):
+        gf.gpdk.PDK.activate() # Set current PDK to active PDK
+    else:
+        gf.pdk.get_generic_pdk().activate() # Activate generic PDK
+    c = None # Gigantic variable that will be written to file
+
+    xs = gf.cross_section.strip(layer=(1, 0), width=0.5) # Cross section
+
+    # Check for GDS files
+    splitter_path = pathlib_hw.Path(splitter_gds) # Create a Path object
+    combiner_path = pathlib_hw.Path(combiner_gds)
+    gc_path = pathlib_hw.Path(gc_gds)
+    mo.stop(
+        not splitter_path.exists(),
+        mo.md(f"Error: Splitter GDS not found: `{splitter_path}`")
+    )
+    mo.stop(
+        not combiner_path.exists(),
+        mo.md(f"Error: Combiner GDS not found: `{combiner_path}`")
+    )
+    mo.stop(
+        not gc_path.exists(),
+        mo.md(f"Error: GC GDS not found: `{gc_path}`")
     )
     return
 
